@@ -44,7 +44,6 @@ Let's create an ICMP packet with the payload "AAAAAAAAABBBBBBBBCCCCCCCC" and sen
 ```
 >>> packet = IP(dst="127.0.0.1")/ICMP()/"AAAAAAAAABBBBBBBBCCCCCCCC"
 >>> send(packet)
-
 ```
 
 Let's check the Configuration for snort rules so that it can be detected.
@@ -68,7 +67,6 @@ Let's create the ICMP packet and fragment it
 ```
 >>> packet = IP(dst="127.0.0.1")/ICMP()/"AAAAAAAAABBBBBBBBCCCCCCCC"
 >>> fragments = fragment(packet, 8)
-
 ```
 
 Let's send each fragment:
@@ -76,7 +74,6 @@ Let's send each fragment:
 ```
 >>> for fragment in fragments:
 ...     send(fragment)
-
 ```
 
 * **Fragmentation in Scapy**:
@@ -85,7 +82,6 @@ In order to test Scapy and the fragementation process more, we can use are going
 Let's start with the rule:
 ```
 alert icmp any any -> any any (msg:"ICMP message with AAAAAAAABBBBBBBBCCCCCCCC payload"; icmp_type:8; icmp_code:0; content:"AAAAAAAABBBBBBBBCCCCCCCC"; depth:24; sid:1000002; rev:1;)
-
 ```
 
 Let's use Scapy to send the packet:
@@ -93,14 +89,12 @@ Let's use Scapy to send the packet:
 ```
 sudo scapy
 send(IP(dst="127.0.0.1")/ICMP()/"AAAAAAAABBBBBBBBCCCCCCCC")
-
 ```
 
 Now let's modify the Snort rule to detect ICMP messages containing "BBBBAAAACCCCCCCC" instead. Open the Snort configuration file and change the content parameter of the rule to "BBBBAAAACCCCCCCC":
 
 ```
 alert icmp any any -> any any (msg:"ICMP message with BBBBAAAACCCCCCCC payload"; icmp_type:8; icmp_code:0; content:"BBBBAAAACCCCCCCC"; depth:24; sid:1000002; rev:2;)
-
 ```
 
 Let's fragment our packet and send it:
@@ -110,7 +104,6 @@ packet = IP(dst="127.0.0.1")/ICMP()/"AAAAAAAABBBBBBBBCCCCCCCC"
 fragments = fragment(packet, 8)
 for fragment in fragments:
     send(fragment)
-
 ```
 
 We can see that the output is like this:
@@ -150,7 +143,6 @@ Once the attacker succeeds in an ARP spoofing attack, they can:
 2. Perform session hijacking⁠—if the attacker obtains a session ID, they can gain access to accounts the user is currently logged into.
 3. Alter communication⁠—for example pushing a malicious file or website to the workstation.
 4. Distributed Denial of Service (DDoS)⁠—the attackers can provide the MAC address of a server they wish to attack with DDoS, instead of their own machine. If they do this for a large number of IPs, the target server will be bombarded with traffic.
-
 
 
 
