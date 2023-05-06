@@ -144,21 +144,96 @@ Once the attacker succeeds in an ARP spoofing attack, they can:
 3. Alter communication⁠—for example pushing a malicious file or website to the workstation.
 4. Distributed Denial of Service (DDoS)⁠—the attackers can provide the MAC address of a server they wish to attack with DDoS, instead of their own machine. If they do this for a large number of IPs, the target server will be bombarded with traffic.
 
+* **Simulating the ARP Poisoning Attack**:
+
+Let's add the Snort3 rule to the config file:
+
+```
+alert arp any any -> any any (msg:"ARP Spoofing Detected"; arp.opcode == 2; arp.spa == IP_address_of_gateway_machine and arp.sha != MAC_address_of_gateway_machine; arp.tpa == IP_address_of_target_machine and arp.tha != MAC_address_of_target_machine; sid:100001; rev:1;)
+```
+
+Let's start with creating the attack on scapy:
+
+```
+from scapy.all import *
+send(ARP(op=2, pdst="IP_address_of_target_machine", psrc="IP_address_of_gateway_machine", hwdst="MAC_address_of_target_machine"))
+send(ARP(op=2, pdst="IP_address_of_gateway_machine", psrc="IP_address_of_target_machine", hwdst="MAC_address_of_gateway_machine"))
+```
+
+Just after launching the attack, we can see the following alert:
+
+```
+alert ip any any -> any any (msg:"ARP Spoofing Attack Detected"; flow:to_server,established; content:"|00 01 08 00 06 04 00 02 00 00 00 00|"; content:"|00 00 00 00 00 00|"; distance:6; within:12; content:"|C0 A8 01 01|"; distance:22; within:4; content:"|00 00 00 00 00 00|"; distance:28; within:6; sid:100001; rev:1;)
+```
+
+* **Simulating a Port Scan Recon with nmap and Snort3**
+
+Let's runa a scan with nmap
+
+```
+nmap -sP 192.168.1.0/24 –-packet-trace // Will use ARP pings
+nmap -sP 192.168.207.0/24 –-disable-arp-ping // Will only use ARP pings
+```
+
+Let's set up a snort rule to detect the ping sweep:
+
+```
+alert icmp any any -> $HOME_NET any (msg:”Possible Nmap ping sweep”; dsize:0; sid:1000005; rev:1;)
+alert tcp any any -> $HOME_NET any (msg:”TCP Port Scanning”; detection_filter:track by_src, count 30, seconds 60; sid:1000006; rev:1;)
+```
+
+Since the TCP port scan is used more, and could give false positives we used the **COUNT** parameter in the rule to specify that the alert will only be launched after 30 packets.
+
+Let's run a stealthy scan with nmap 
+
+```
+nmap –sT 192.168.1.1 –p- –scan-delay 5s
+```
+We've used the **INSANE** mode for the 5s scan delay. that's gonna make it faster.
+
+# Simulating Advanced Attacks and Implementing their Mitigations
+
+## SYN Flooding Attack
+
+![image](https://user-images.githubusercontent.com/91763346/236630897-170019ad-f7ce-4af4-b6f7-d6ab8d353be7.png)
+
+A SYN flood (half-open attack) is a type of denial-of-service (DDoS) attack which aims to make a server unavailable to legitimate traffic by consuming all available server resources. By repeatedly sending initial connection request (SYN) packets, the attacker is able to overwhelm all available ports on a targeted server machine, causing the targeted device to respond to legitimate traffic sluggishly or not at all.
+
+![image](https://user-images.githubusercontent.com/91763346/236630925-a73fbb82-b944-4f5b-aa93-6c6764a07212.png)
+
+* **Snort Rule**:
+Let's add the snort rule to the config:
+
+```
+alert tcp !$HOME_NET any -> $HOME_NET 80 (flags: S; msg: "Possible DDoS TCP attack"; flow: stateless; detection_filter: track by_dst, count 150000, seconds 60;sid:10000001; rev:001;)
+```
+* **Scapy Code**:
+Let's test the Scapy Code:
+
+```
+send (IP (dst = "192.168.1.1", src = RandIP()) / TCP (dport=80, flags="S"), loop=1)
+```
+
+## Land Attack
+
+![image](https://user-images.githubusercontent.com/91763346/236631157-00271c3d-499c-40f0-9b95-000469e15bba.png)
 
 
+A LAND Attack is a Layer 4 Denial of Service (DoS) attack in which, the attacker sets the source and destination information of a TCP segment to be the same. A vulnerable machine will crash or freeze due to the packet being repeatedly processed by the TCP stack.
 
+In a LAND attack, a specially crafted TCP SYN packet is created such that the source IP address and port are set to be the same as the destination address and port, which in turn is set to point to an open port on a victim’s machine. A vulnerable machine would receive such a message and reply to the destination address effectively sending the packet for reprocessing in an infinite loop. Thus, machine CPU is consumed indefinitely freezing the vulnerable machine, causing a lock up, or even crashing it.
 
+--> **IP Source** = **IP Destination**
 
+* **Snort Rule**:
 
+```
+alert tcp any any -> $HOME_NET any (sameip; msg:"LAND attack"; sid:10000002; rev:001;)
+```
 
+* **Scapy Code**:
+```
+send (IP (dst = "192.168.1.1", src = ” 192.168.1.1”) / TCP(dport = RandShort() ), loop=1)
+```
 
-
-
-
-
-
-
-
-
-
-
+## Mail Bomb
